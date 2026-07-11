@@ -2,9 +2,16 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Sorties Musicales</title>
-<link rel="icon" type="image/svg+xml" href="logo.svg">
+<meta name="theme-color" content="#121016">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sorties">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -43,11 +50,16 @@
   .disc.spin{ animation: spin 0.9s linear infinite; }
   @keyframes spin{ to{ transform: rotate(360deg); } }
 
-  nav.tabs{ display:flex; gap:4px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+  nav.tabs{
+    display:flex; gap:4px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+    overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  nav.tabs::-webkit-scrollbar{ display:none; }
   nav.tabs button{
     background:transparent; color: var(--ink-dim); font-family:'Oswald', sans-serif;
     text-transform:uppercase; letter-spacing: 0.6px; font-size: 13px; font-weight:600;
     padding: 10px 14px; border-radius: 0; border-bottom: 2px solid transparent;
+    white-space:nowrap; flex-shrink:0;
   }
   nav.tabs button.active{ color: var(--ink); border-bottom-color: var(--accent); }
   nav.tabs button:hover{ color: var(--ink); background:transparent; }
@@ -124,13 +136,25 @@
   .status{ text-align:center; color: var(--ink-dim); font-size:13px; padding: 20px; }
   .toolbar{ display:flex; justify-content: space-between; align-items:center; margin-bottom: 6px; }
   .reco-note{ font-size: 12px; color: var(--ink-dim); margin-bottom: 14px; padding: 10px 12px; background: var(--bg-raised); border-radius: 6px; border: 1px solid var(--line); }
+
+  @media (max-width: 480px){
+    .wrap{ padding: calc(16px + env(safe-area-inset-top, 0px)) 14px calc(60px + env(safe-area-inset-bottom, 0px)); }
+    h1{ font-size: 22px; }
+    .app-logo, .disc{ width:34px; height:34px; }
+    .sub{ font-size:12px; }
+    nav.tabs button{ padding: 9px 11px; font-size:12px; }
+    .search-row{ flex-wrap: wrap; }
+    .search-row input[type=text]{ flex-basis:100%; }
+    .dig-artist-row{ flex-wrap: wrap; }
+    .dig-artist-actions{ width:100%; justify-content:flex-end; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="brand">
-      <img src="logo.svg" class="app-logo" alt="">
+      <img src="logo.png" class="app-logo" alt="">
       <div>
         <h1>Sorties<span>.</span></h1>
         <p class="sub">Vos artistes, les tendances, et des découvertes</p>
@@ -248,9 +272,9 @@ const el = id => document.getElementById(id);
 
 async function loadState(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    if(res && res.value){
-      const parsed = JSON.parse(res.value);
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
       state = { ...state, ...parsed };
     }
   }catch(e){
@@ -260,8 +284,7 @@ async function loadState(){
 
 async function saveState(){
   try{
-    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-    if(!result) console.error('Échec de la sauvegarde');
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }catch(e){
     console.error('Erreur de stockage', e);
   }
