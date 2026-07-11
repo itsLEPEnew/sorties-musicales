@@ -109,6 +109,14 @@
   .chart-row .artist{ font-size: 12px; color: var(--ink-dim); }
   .genre-tag{ font-size: 10px; color: var(--teal); text-transform:uppercase; letter-spacing:0.4px; }
 
+  .dig-header{ margin: 20px 0 10px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .dig-header h3{ font-family:'Oswald', sans-serif; text-transform:uppercase; letter-spacing:0.5px; font-size:17px; margin:0; }
+  .dig-related-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:18px; }
+  .genre-chip{ background: var(--bg-card); border: 1px solid var(--line); border-radius: 20px; padding: 5px 12px; font-size: 12.5px; color: var(--teal); }
+  .genre-chip:hover{ background: var(--accent-dim); color:#fff; border-color: var(--accent-dim); }
+  .dig-artist-list{ display:flex; flex-direction:column; gap:5px; }
+  .dig-artist-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; background: var(--bg-card); border-radius:6px; }
+  .dig-artist-row .name{ font-size:13px; }
   .status{ text-align:center; color: var(--ink-dim); font-size:13px; padding: 20px; }
   .toolbar{ display:flex; justify-content: space-between; align-items:center; margin-bottom: 6px; }
   .reco-note{ font-size: 12px; color: var(--ink-dim); margin-bottom: 14px; padding: 10px 12px; background: var(--bg-raised); border-radius: 6px; border: 1px solid var(--line); }
@@ -190,6 +198,16 @@
 
   <!-- TAB: RECOMMANDATIONS -->
   <div class="tab-panel" id="tab-reco" style="display:none;">
+    <div class="panel">
+      <p class="sub" style="margin:0 0 10px;">Creuser un genre (base Every Noise at Once, hors-ligne) — tapez un genre pour voir les artistes associés et les genres proches.</p>
+      <div class="search-row">
+        <input type="text" id="digInput" placeholder="Ex: dream pop, drill, afrobeat..." autocomplete="off">
+        <button id="digBtn">Creuser</button>
+      </div>
+      <div class="results" id="digSuggestions"></div>
+    </div>
+    <div id="digResult"></div>
+
     <div id="recoNote"></div>
     <div id="recoList"></div>
   </div>
@@ -537,6 +555,144 @@ function renderGlobalChart(){
 }
 
 el('globalRefreshBtn').onclick = fetchGlobalChart;
+
+/* ---------- GENRE DIG (Every Noise at Once, static local data) ---------- */
+let genreIndex = null;
+let genreIndexPromise = null;
+
+function loadGenreIndex(){
+  if(!genreIndexPromise){
+    genreIndexPromise = fetch('data/genre-index.json')
+      .then(r => r.json())
+      .then(data => { genreIndex = data; return data; })
+      .catch(e => { console.error("Impossible de charger l'index des genres", e); genreIndex = []; return []; });
+  }
+  return genreIndexPromise;
+}
+
+function normalizeGenreQuery(s){
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+async function showDigSuggestions(query){
+  const container = el('digSuggestions');
+  const q = normalizeGenreQuery(query);
+  if(!q){ container.innerHTML = ''; return; }
+  await loadGenreIndex();
+  const matches = genreIndex
+    .filter(g => normalizeGenreQuery(g.name).includes(q))
+    .slice(0, 10);
+  if(matches.length === 0){
+    container.innerHTML = '<div class="status">Aucun genre trouvé.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  matches.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `<span class="name">🎧 ${escapeHtml(g.name)}</span>`;
+    div.onclick = () => { el('digInput').value = g.name; container.innerHTML = ''; digGenre(g.slug); };
+    container.appendChild(div);
+  });
+}
+
+let digRequestId = 0;
+
+async function digGenre(slug){
+  const container = el('digResult');
+  const requestId = ++digRequestId;
+  container.innerHTML = '<div class="status">Chargement du genre…</div>';
+  try{
+    const resp = await fetch(`data/genres/${slug}.json`);
+    if(!resp.ok) throw new Error('Genre introuvable');
+    const data = await resp.json();
+    if(requestId !== digRequestId) return;
+    renderDigResult(data);
+  }catch(e){
+    if(requestId !== digRequestId) return;
+    container.innerHTML = `<div class="status">Genre indisponible (${escapeHtml(e.message)}).</div>`;
+  }
+}
+
+function renderDigResult(data){
+  const container = el('digResult');
+  container.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'dig-header';
+  header.innerHTML = `<h3>${escapeHtml(data.name)}</h3><span class="sub">${data.artists.length} artiste(s) · Every Noise at Once</span>`;
+  container.appendChild(header);
+
+  if(data.related && data.related.length){
+    const relRow = document.createElement('div');
+    relRow.className = 'dig-related-row';
+    data.related.forEach(rname => {
+      const btn = document.createElement('button');
+      btn.className = 'genre-chip';
+      btn.textContent = rname;
+      btn.onclick = async () => {
+        await loadGenreIndex();
+        const match = genreIndex.find(g => g.name === rname);
+        if(match){ el('digInput').value = match.name; digGenre(match.slug); }
+      };
+      relRow.appendChild(btn);
+    });
+    container.appendChild(relRow);
+  }
+
+  const list = document.createElement('div');
+  list.className = 'dig-artist-list';
+  const followedNames = new Set(state.followedArtists.map(a => a.name.toLowerCase()));
+  data.artists.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'dig-artist-row';
+    const isFollowed = followedNames.has(name.toLowerCase());
+    row.innerHTML = `
+      <span class="name">${escapeHtml(name)}</span>
+      <button class="ghost small" ${isFollowed ? 'disabled' : ''}>${isFollowed ? 'Suivi ✓' : '+ Suivre'}</button>
+    `;
+    if(!isFollowed){
+      row.querySelector('button').onclick = () => addArtistByName(name, row.querySelector('button'));
+    }
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
+async function addArtistByName(name, btnEl){
+  btnEl.disabled = true;
+  btnEl.textContent = '…';
+  try{
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(name)}&entity=musicArtist&limit=1`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if(data.results && data.results.length > 0){
+      const match = data.results[0];
+      await addArtist(match.artistId, match.artistName);
+      btnEl.textContent = 'Suivi ✓';
+    } else {
+      btnEl.textContent = 'Introuvable';
+    }
+  }catch(e){
+    btnEl.textContent = 'Erreur';
+    btnEl.disabled = false;
+  }
+}
+
+async function digFromInput(){
+  el('digSuggestions').innerHTML = '';
+  await loadGenreIndex();
+  const q = normalizeGenreQuery(el('digInput').value);
+  if(!q) return;
+  const exact = genreIndex.find(g => normalizeGenreQuery(g.name) === q);
+  const match = exact || genreIndex.find(g => normalizeGenreQuery(g.name).includes(q));
+  if(match) digGenre(match.slug);
+  else el('digResult').innerHTML = '<div class="status">Aucun genre correspondant.</div>';
+}
+
+el('digInput').addEventListener('input', debounce(e => showDigSuggestions(e.target.value), 300));
+el('digInput').addEventListener('keydown', e => { if(e.key === 'Enter') digFromInput(); });
+el('digBtn').onclick = digFromInput;
 
 /* ---------- RECOMMENDATIONS (Last.fm artist.getSimilar) ---------- */
 async function renderReco(){
