@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sorties Musicales</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -29,6 +30,8 @@
   }
   .wrap{ max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
   header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+  .brand{ display:flex; align-items:center; gap: 12px; }
+  .app-logo{ width: 40px; height: 40px; flex-shrink:0; border-radius: 8px; }
   h1{ font-family:'Oswald', sans-serif; font-weight:700; font-size: 28px; letter-spacing: 0.5px; margin:0; text-transform: uppercase; }
   h1 span{ color: var(--accent); }
   .sub{ color: var(--ink-dim); font-size: 13px; margin: 4px 0 0; }
@@ -117,6 +120,7 @@
   .dig-artist-list{ display:flex; flex-direction:column; gap:5px; }
   .dig-artist-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; background: var(--bg-card); border-radius:6px; }
   .dig-artist-row .name{ font-size:13px; }
+  .dig-artist-actions{ display:flex; gap:8px; flex-shrink:0; }
   .status{ text-align:center; color: var(--ink-dim); font-size:13px; padding: 20px; }
   .toolbar{ display:flex; justify-content: space-between; align-items:center; margin-bottom: 6px; }
   .reco-note{ font-size: 12px; color: var(--ink-dim); margin-bottom: 14px; padding: 10px 12px; background: var(--bg-raised); border-radius: 6px; border: 1px solid var(--line); }
@@ -125,9 +129,12 @@
 <body>
 <div class="wrap">
   <header>
-    <div>
-      <h1>Sorties<span>.</span></h1>
-      <p class="sub">Vos artistes, les tendances, et des découvertes</p>
+    <div class="brand">
+      <img src="logo.svg" class="app-logo" alt="">
+      <div>
+        <h1>Sorties<span>.</span></h1>
+        <p class="sub">Vos artistes, les tendances, et des découvertes</p>
+      </div>
     </div>
     <div class="disc" id="headerDisc"></div>
   </header>
@@ -203,6 +210,7 @@
       <div class="search-row">
         <input type="text" id="digInput" placeholder="Ex: dream pop, drill, afrobeat..." autocomplete="off">
         <button id="digBtn">Creuser</button>
+        <button class="ghost" id="digRandomBtn" title="Genre aléatoire">🎲 Aléatoire</button>
       </div>
       <div class="results" id="digSuggestions"></div>
     </div>
@@ -649,14 +657,45 @@ function renderDigResult(data){
     const isFollowed = followedNames.has(name.toLowerCase());
     row.innerHTML = `
       <span class="name">${escapeHtml(name)}</span>
-      <button class="ghost small" ${isFollowed ? 'disabled' : ''}>${isFollowed ? 'Suivi ✓' : '+ Suivre'}</button>
+      <div class="dig-artist-actions">
+        <button class="ghost small am-link">🎵 Apple Music</button>
+        <button class="ghost small follow-btn" ${isFollowed ? 'disabled' : ''}>${isFollowed ? 'Suivi ✓' : '+ Suivre'}</button>
+      </div>
     `;
+    row.querySelector('.am-link').onclick = (e) => openAppleMusicLink(name, e.target);
     if(!isFollowed){
-      row.querySelector('button').onclick = () => addArtistByName(name, row.querySelector('button'));
+      row.querySelector('.follow-btn').onclick = (e) => addArtistByName(name, e.target);
     }
     list.appendChild(row);
   });
   container.appendChild(list);
+}
+
+async function openAppleMusicLink(name, btnEl){
+  const original = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = '…';
+  const newTab = window.open('', '_blank', 'noopener');
+  try{
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(name)}&entity=musicArtist&limit=1`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const link = data.results && data.results[0] && data.results[0].artistLinkUrl;
+    if(link){
+      if(newTab) newTab.location.href = link;
+      else window.open(link, '_blank', 'noopener');
+    } else {
+      if(newTab) newTab.close();
+      btnEl.textContent = 'Introuvable';
+      setTimeout(() => { btnEl.textContent = original; }, 1500);
+    }
+  }catch(e){
+    if(newTab) newTab.close();
+    btnEl.textContent = 'Erreur';
+    setTimeout(() => { btnEl.textContent = original; }, 1500);
+  }
+  btnEl.disabled = false;
+  if(btnEl.textContent === '…') btnEl.textContent = original;
 }
 
 async function addArtistByName(name, btnEl){
@@ -693,6 +732,15 @@ async function digFromInput(){
 el('digInput').addEventListener('input', debounce(e => showDigSuggestions(e.target.value), 300));
 el('digInput').addEventListener('keydown', e => { if(e.key === 'Enter') digFromInput(); });
 el('digBtn').onclick = digFromInput;
+
+el('digRandomBtn').onclick = async () => {
+  el('digSuggestions').innerHTML = '';
+  await loadGenreIndex();
+  if(!genreIndex.length) return;
+  const g = genreIndex[Math.floor(Math.random() * genreIndex.length)];
+  el('digInput').value = g.name;
+  digGenre(g.slug);
+};
 
 /* ---------- RECOMMENDATIONS (Last.fm artist.getSimilar) ---------- */
 async function renderReco(){
