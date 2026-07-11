@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sorties Musicales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #121016;
+    --bg-raised: #1a1720;
+    --bg-card: #201d28;
+    --line: #322c3b;
+    --ink: #F2EFEA;
+    --ink-dim: #9992a3;
+    --accent: #C9427D;
+    --accent-dim: #7a2c4f;
+    --teal: #3FB8AF;
+    --gold: #D9A441;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{ max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
+  header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+  h1{ font-family:'Oswald', sans-serif; font-weight:700; font-size: 28px; letter-spacing: 0.5px; margin:0; text-transform: uppercase; }
+  h1 span{ color: var(--accent); }
+  .sub{ color: var(--ink-dim); font-size: 13px; margin: 4px 0 0; }
+  .disc{
+    width: 40px; height: 40px; border-radius: 50%;
+    background: radial-gradient(circle at center, #050408 0 6px, #2a2632 6px 8px, #050408 8px 9px, var(--bg-card) 9px 20px);
+    border: 1px solid var(--line); flex-shrink:0; transition: transform 0.6s ease;
+  }
+  .disc.spin{ animation: spin 0.9s linear infinite; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  nav.tabs{ display:flex; gap:4px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+  nav.tabs button{
+    background:transparent; color: var(--ink-dim); font-family:'Oswald', sans-serif;
+    text-transform:uppercase; letter-spacing: 0.6px; font-size: 13px; font-weight:600;
+    padding: 10px 14px; border-radius: 0; border-bottom: 2px solid transparent;
+  }
+  nav.tabs button.active{ color: var(--ink); border-bottom-color: var(--accent); }
+  nav.tabs button:hover{ color: var(--ink); background:transparent; }
+
+  .panel{ background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .search-row{ display:flex; gap:8px; }
+  input[type=text], textarea{
+    flex:1; background: var(--bg); border: 1px solid var(--line); color: var(--ink);
+    padding: 10px 12px; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical;
+  }
+  input[type=text]:focus, textarea:focus{ outline: 1px solid var(--accent); border-color: var(--accent); }
+  button{
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13px; border: none;
+    border-radius: 6px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: #fff;
+  }
+  button:hover{ background: #d95a8d; }
+  button:disabled{ opacity:0.5; cursor:default; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible{ outline: 2px solid var(--teal); outline-offset: 2px; }
+  button.ghost{ background: transparent; border: 1px solid var(--line); color: var(--ink-dim); }
+  button.ghost:hover{ color: var(--ink); border-color: var(--ink-dim); }
+  button.small{ padding: 6px 10px; font-size: 12px; }
+
+  .bulk-toggle{ margin-top: 10px; }
+  .bulk-toggle summary{ cursor:pointer; color: var(--teal); font-size: 13px; font-weight:600; list-style:none; }
+  .bulk-toggle summary::-webkit-details-marker{ display:none; }
+  .bulk-area{ margin-top: 10px; display:flex; flex-direction:column; gap:8px; }
+  .bulk-result{ font-size: 12px; color: var(--ink-dim); white-space: pre-wrap; }
+
+  .results{ margin-top: 10px; display:flex; flex-direction:column; gap:6px; }
+  .result-item{ display:flex; align-items:center; gap:10px; padding: 8px; border-radius:6px; background: var(--bg-card); cursor:pointer; }
+  .result-item:hover{ background: var(--bg); border: 1px solid var(--accent-dim); }
+  .result-item .name{ font-size: 13px; }
+
+  .followed-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .chip{ display:flex; align-items:center; gap:6px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 20px; padding: 5px 6px 5px 12px; font-size: 12.5px; }
+  .chip button{ background:transparent; color: var(--ink-dim); padding: 2px 6px; font-size:14px; line-height:1; }
+  .chip button:hover{ color: var(--accent); background:transparent; }
+
+  .empty{ text-align:center; padding: 60px 20px; color: var(--ink-dim); }
+  .empty .disc{ margin: 0 auto 16px; }
+
+  .month-label{
+    font-family:'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 1.5px;
+    font-size: 13px; color: var(--ink-dim); margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  .release{ display:flex; gap:12px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items:center; }
+  .release img{ width:56px; height:56px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+  .release .meta{ flex:1; min-width:0; }
+  .release .artist{ font-size: 12px; color: var(--teal); font-weight:600; text-transform:uppercase; letter-spacing:0.4px; }
+  .release .title{ font-size: 15px; font-weight:500; margin: 2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .release .date{ font-size: 12px; color: var(--ink-dim); }
+  .badge-new{ background: var(--accent); color:#fff; font-size: 10px; font-weight:700; padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink:0; }
+
+  .rank{
+    width: 28px; text-align:center; font-family:'Oswald', sans-serif; font-weight:700;
+    font-size: 15px; color: var(--gold); flex-shrink:0;
+  }
+  .chart-row{ display:flex; gap:12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items:center; }
+  .chart-row img{ width:48px; height:48px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+  .chart-row .meta{ flex:1; min-width:0; }
+  .chart-row .title{ font-size: 14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chart-row .artist{ font-size: 12px; color: var(--ink-dim); }
+  .genre-tag{ font-size: 10px; color: var(--teal); text-transform:uppercase; letter-spacing:0.4px; }
+
+  .status{ text-align:center; color: var(--ink-dim); font-size:13px; padding: 20px; }
+  .toolbar{ display:flex; justify-content: space-between; align-items:center; margin-bottom: 6px; }
+  .reco-note{ font-size: 12px; color: var(--ink-dim); margin-bottom: 14px; padding: 10px 12px; background: var(--bg-raised); border-radius: 6px; border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sorties<span>.</span></h1>
+      <p class="sub">Vos artistes, les tendances, et des découvertes</p>
+    </div>
+    <div class="disc" id="headerDisc"></div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="mine">Mes artistes</button>
+    <button class="tab-btn" data-tab="global">Tendances mondiales</button>
+    <button class="tab-btn" data-tab="reco">Recommandations</button>
+    <button class="tab-btn" data-tab="fip">Sélection FIP</button>
+  </nav>
+
+  <details class="bulk-toggle" id="settingsDetails" style="margin-bottom:16px;">
+    <summary>⚙ Clé API Last.fm (nécessaire pour Tendances &amp; Recommandations)</summary>
+    <div class="bulk-area">
+      <p class="sub" style="margin:0;">
+        Basé sur les écoutes réelles des utilisateurs Last.fm (pas un algorithme éditorial). Clé gratuite, obtenue en 30 secondes sur
+        <a href="https://www.last.fm/api/account/create" target="_blank" style="color:var(--teal);">last.fm/api/account/create</a>.
+      </p>
+      <div class="search-row">
+        <input type="text" id="lastfmKeyInput" placeholder="Collez votre clé API Last.fm ici">
+        <button id="lastfmKeySave">Enregistrer</button>
+      </div>
+      <span class="sub" id="lastfmKeyStatus"></span>
+    </div>
+  </details>
+
+  <!-- TAB: MES ARTISTES -->
+  <div class="tab-panel" id="tab-mine">
+    <div class="panel">
+      <div class="search-row">
+        <input type="text" id="searchInput" placeholder="Chercher un artiste (ex: Angèle, Damso...)" autocomplete="off">
+        <button id="searchBtn">Chercher</button>
+      </div>
+      <div class="results" id="results"></div>
+
+      <details class="bulk-toggle">
+        <summary>+ Ajouter plusieurs artistes d'un coup (import en lot)</summary>
+        <div class="bulk-area">
+          <textarea id="bulkInput" rows="4" placeholder="Collez des noms d'artistes, un par ligne&#10;ex:&#10;Angèle&#10;Damso&#10;Tame Impala"></textarea>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="bulkBtn">Ajouter la liste</button>
+            <span class="sub" id="bulkStatus"></span>
+          </div>
+          <div class="bulk-result" id="bulkResult"></div>
+        </div>
+      </details>
+
+      <div class="followed-row" id="followedRow"></div>
+    </div>
+
+    <div class="toolbar">
+      <span class="sub" id="countLabel"></span>
+      <button class="ghost small" id="refreshBtn">↻ Rafraîchir</button>
+    </div>
+
+    <div id="timeline"></div>
+  </div>
+
+  <!-- TAB: TENDANCES MONDIALES -->
+  <div class="tab-panel" id="tab-global" style="display:none;">
+    <p class="reco-note">Classement Last.fm — basé sur le nombre réel d'écoutes ("scrobbles") de millions d'auditeurs dans le monde, pas sur une sélection éditoriale d'une plateforme.</p>
+    <div class="toolbar">
+      <span class="sub" id="globalCountLabel"></span>
+      <button class="ghost small" id="globalRefreshBtn">↻ Rafraîchir</button>
+    </div>
+    <div id="globalChart"></div>
+  </div>
+
+  <!-- TAB: RECOMMANDATIONS -->
+  <div class="tab-panel" id="tab-reco" style="display:none;">
+    <div id="recoNote"></div>
+    <div id="recoList"></div>
+  </div>
+
+  <!-- TAB: SELECTION FIP -->
+  <div class="tab-panel" id="tab-fip" style="display:none;">
+    <p class="reco-note">Ce que joue FIP en direct, en ce moment — la sélection musicale de la radio, pas un classement de popularité. Basé sur un flux public non-officiel de Radio France : peut cesser de fonctionner s'ils changent leur système.</p>
+    <div class="toolbar">
+      <span class="sub" id="fipStatusLabel"></span>
+      <button class="ghost small" id="fipRefreshBtn">↻ Rafraîchir</button>
+    </div>
+    <div id="fipContent"></div>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'music-tracker-data';
+let state = {
+  followedArtists: [],
+  releasesCache: {},
+  lastVisit: 0,
+  globalChart: [],
+  globalChartFetchedAt: 0,
+  lastfmApiKey: ''
+};
+let fipPollTimer = null;
+
+const el = id => document.getElementById(id);
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      state = { ...state, ...parsed };
+    }
+  }catch(e){
+    console.log('Aucune donnée existante, démarrage à vide.', e);
+  }
+}
+
+async function saveState(){
+  try{
+    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    if(!result) console.error('Échec de la sauvegarde');
+  }catch(e){
+    console.error('Erreur de stockage', e);
+  }
+}
+
+function debounce(fn, ms){
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+/* ---------- TABS ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    btn.classList.add('active');
+    el('tab-' + btn.dataset.tab).style.display = 'block';
+    if(fipPollTimer){ clearInterval(fipPollTimer); fipPollTimer = null; }
+    if(btn.dataset.tab === 'global') ensureGlobalChart();
+    if(btn.dataset.tab === 'reco') renderReco();
+    if(btn.dataset.tab === 'fip'){
+      fetchFip();
+      fipPollTimer = setInterval(fetchFip, 30000);
+    }
+  });
+});
+
+/* ---------- LAST.FM API KEY ---------- */
+el('lastfmKeyInput').value = '';
+el('lastfmKeySave').onclick = async () => {
+  state.lastfmApiKey = el('lastfmKeyInput').value.trim();
+  await saveState();
+  el('lastfmKeyStatus').textContent = state.lastfmApiKey ? 'Clé enregistrée.' : 'Clé effacée.';
+};
+
+/* ---------- SEARCH & ADD (single) ---------- */
+async function searchArtists(term){
+  if(!term.trim()){ el('results').innerHTML=''; return; }
+  el('results').innerHTML = '<div class="status">Recherche…</div>';
+  try{
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=musicArtist&limit=8`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    renderResults(data.results || []);
+  }catch(e){
+    el('results').innerHTML = '<div class="status">Recherche indisponible pour le moment.</div>';
+  }
+}
+
+function renderResults(results){
+  const container = el('results');
+  const followedIds = new Set(state.followedArtists.map(a => a.id));
+  const filtered = results.filter(r => !followedIds.has(r.artistId));
+  if(filtered.length === 0){
+    container.innerHTML = '<div class="status">Aucun nouveau résultat.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  filtered.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `<span class="name">🎤 ${escapeHtml(r.artistName)}</span>`;
+    div.onclick = () => addArtist(r.artistId, r.artistName);
+    container.appendChild(div);
+  });
+}
+
+async function addArtist(id, name){
+  if(state.followedArtists.some(a => a.id === id)) return;
+  state.followedArtists.push({ id, name });
+  el('results').innerHTML = '';
+  el('searchInput').value = '';
+  renderFollowed();
+  await fetchReleasesFor(id);
+  await saveState();
+  renderTimeline();
+}
+
+async function removeArtist(id){
+  state.followedArtists = state.followedArtists.filter(a => a.id !== id);
+  delete state.releasesCache[id];
+  await saveState();
+  renderFollowed();
+  renderTimeline();
+}
+
+function renderFollowed(){
+  const row = el('followedRow');
+  row.innerHTML = '';
+  state.followedArtists.forEach(a => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.innerHTML = `<span>${escapeHtml(a.name)}</span>`;
+    const btn = document.createElement('button');
+    btn.innerHTML = '✕';
+    btn.setAttribute('aria-label', `Ne plus suivre ${a.name}`);
+    btn.onclick = () => removeArtist(a.id);
+    chip.appendChild(btn);
+    row.appendChild(chip);
+  });
+  el('countLabel').textContent = state.followedArtists.length
+    ? `${state.followedArtists.length} artiste(s) suivi(s)`
+    : '';
+}
+
+/* ---------- BULK ADD ---------- */
+el('bulkBtn').onclick = async () => {
+  const raw = el('bulkInput').value;
+  const names = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  if(names.length === 0) return;
+  el('bulkBtn').disabled = true;
+  el('bulkStatus').textContent = `Traitement de ${names.length} nom(s)…`;
+  const log = [];
+  const followedNames = new Set(state.followedArtists.map(a => a.name.toLowerCase()));
+
+  for(const name of names){
+    if(followedNames.has(name.toLowerCase())){
+      log.push(`= ${name} (déjà suivi)`);
+      continue;
+    }
+    try{
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(name)}&entity=musicArtist&limit=1`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if(data.results && data.results.length > 0){
+        const match = data.results[0];
+        state.followedArtists.push({ id: match.artistId, name: match.artistName });
+        await fetchReleasesFor(match.artistId);
+        log.push(`✓ ${match.artistName}`);
+      } else {
+        log.push(`✗ ${name} (introuvable)`);
+      }
+    }catch(e){
+      log.push(`✗ ${name} (erreur réseau)`);
+    }
+  }
+
+  await saveState();
+  renderFollowed();
+  renderTimeline();
+  el('bulkResult').textContent = log.join('\n');
+  el('bulkStatus').textContent = 'Terminé.';
+  el('bulkBtn').disabled = false;
+  el('bulkInput').value = '';
+};
+
+/* ---------- RELEASES (per artist) ---------- */
+async function fetchReleasesFor(artistId){
+  try{
+    const url = `https://itunes.apple.com/lookup?id=${artistId}&entity=album&limit=25`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const albums = (data.results || []).filter(r => r.wrapperType === 'collection');
+    state.releasesCache[artistId] = albums.map(a => ({
+      id: a.collectionId,
+      name: a.collectionName,
+      releaseDate: a.releaseDate,
+      artwork: a.artworkUrl100,
+      type: a.collectionType,
+      genre: a.primaryGenreName || null
+    }));
+  }catch(e){
+    console.error('Erreur de récupération des sorties pour', artistId, e);
+  }
+}
+
+async function refreshAll(){
+  if(state.followedArtists.length === 0) return;
+  const disc = el('headerDisc');
+  disc.classList.add('spin');
+  el('refreshBtn').disabled = true;
+  await Promise.all(state.followedArtists.map(a => fetchReleasesFor(a.id)));
+  await saveState();
+  renderTimeline();
+  disc.classList.remove('spin');
+  el('refreshBtn').disabled = false;
+}
+
+function renderTimeline(){
+  const container = el('timeline');
+
+  if(state.followedArtists.length === 0){
+    container.innerHTML = `
+      <div class="empty">
+        <div class="disc"></div>
+        <p>Aucun artiste suivi pour l'instant.<br>Cherchez-en un, ou utilisez l'import en lot ci-dessus.</p>
+      </div>`;
+    return;
+  }
+
+  let allReleases = [];
+  state.followedArtists.forEach(a => {
+    const cached = state.releasesCache[a.id] || [];
+    cached.forEach(r => allReleases.push({ ...r, artistName: a.name }));
+  });
+
+  if(allReleases.length === 0){
+    container.innerHTML = '<div class="status">Chargement des sorties…</div>';
+    return;
+  }
+
+  allReleases.sort((a,b) => new Date(b.releaseDate) - new Date(a.releaseDate));
+
+  const groups = {};
+  allReleases.forEach(r => {
+    const d = new Date(r.releaseDate);
+    const key = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(r);
+  });
+
+  container.innerHTML = '';
+  Object.keys(groups).forEach(monthKey => {
+    const label = document.createElement('div');
+    label.className = 'month-label';
+    label.textContent = monthKey;
+    container.appendChild(label);
+
+    groups[monthKey].forEach(r => {
+      const isNew = new Date(r.releaseDate).getTime() > state.lastVisit && state.lastVisit > 0;
+      const div = document.createElement('div');
+      div.className = 'release';
+      const dateStr = new Date(r.releaseDate).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+      div.innerHTML = `
+        <img src="${r.artwork || ''}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="meta">
+          <div class="artist">${escapeHtml(r.artistName)}</div>
+          <div class="title">${escapeHtml(r.name)}</div>
+          <div class="date">${dateStr} · ${r.type === 'Single' ? 'Single' : 'Album'}</div>
+        </div>
+        ${isNew ? '<span class="badge-new">Nouveau</span>' : ''}
+      `;
+      container.appendChild(div);
+    });
+  });
+}
+
+/* ---------- GLOBAL CHART (Last.fm — real listening data) ---------- */
+async function ensureGlobalChart(){
+  const ageMs = Date.now() - (state.globalChartFetchedAt || 0);
+  if(state.globalChart && state.globalChart.length > 0 && ageMs < 1000 * 60 * 60 * 3){
+    renderGlobalChart();
+    return;
+  }
+  await fetchGlobalChart();
+}
+
+async function fetchGlobalChart(){
+  if(!state.lastfmApiKey){
+    el('globalChart').innerHTML = '<div class="status">Ajoutez votre clé API Last.fm ci-dessus pour voir ce classement.</div>';
+    el('globalCountLabel').textContent = '';
+    return;
+  }
+  el('globalChart').innerHTML = '<div class="status">Chargement du classement…</div>';
+  try{
+    const url = `https://ws.audioscrobbler.com/2.0/?method=chart.gettoptracks&api_key=${encodeURIComponent(state.lastfmApiKey)}&format=json&limit=50`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if(data.error){ throw new Error(data.message || 'Erreur API'); }
+    const tracks = (data.tracks && data.tracks.track) || [];
+    state.globalChart = tracks.map(t => ({
+      name: t.name,
+      artistName: t.artist && t.artist.name,
+      listeners: t.listeners,
+      playcount: t.playcount,
+      url: t.url
+    }));
+    state.globalChartFetchedAt = Date.now();
+    await saveState();
+    renderGlobalChart();
+  }catch(e){
+    el('globalChart').innerHTML = `<div class="status">Classement indisponible (${escapeHtml(e.message)}). Le navigateur bloque peut-être l'accès direct à l'API Last.fm (CORS) — dites-le moi si ça persiste.</div>`;
+  }
+}
+
+function renderGlobalChart(){
+  const container = el('globalChart');
+  el('globalCountLabel').textContent = state.globalChart.length ? `Top ${state.globalChart.length} · écoutes mondiales Last.fm` : '';
+  container.innerHTML = '';
+  state.globalChart.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'chart-row';
+    div.innerHTML = `
+      <span class="rank">${i+1}</span>
+      <div class="meta">
+        <div class="title">${escapeHtml(r.name)}</div>
+        <div class="artist">${escapeHtml(r.artistName)}</div>
+      </div>
+      <span class="genre-tag">${Number(r.listeners || 0).toLocaleString('fr-FR')} auditeurs</span>
+    `;
+    container.appendChild(div);
+  });
+}
+
+el('globalRefreshBtn').onclick = fetchGlobalChart;
+
+/* ---------- RECOMMENDATIONS (Last.fm artist.getSimilar) ---------- */
+async function renderReco(){
+  if(state.followedArtists.length === 0){
+    el('recoNote').innerHTML = '<p class="reco-note">Suivez au moins un artiste dans l\'onglet "Mes artistes" pour débloquer des recommandations basées sur vos goûts.</p>';
+    el('recoList').innerHTML = '';
+    return;
+  }
+  if(!state.lastfmApiKey){
+    el('recoNote').innerHTML = '<p class="reco-note">Ajoutez votre clé API Last.fm ci-dessus pour débloquer les recommandations.</p>';
+    el('recoList').innerHTML = '';
+    return;
+  }
+  el('recoNote').innerHTML = '<p class="reco-note">Basé sur les artistes similaires (Last.fm) à ceux que vous suivez.</p>';
+  el('recoList').innerHTML = '<div class="status">Recherche de recommandations…</div>';
+
+  const followedNames = new Set(state.followedArtists.map(a => a.name.toLowerCase()));
+  const tally = {};
+
+  try{
+    await Promise.all(state.followedArtists.map(async a => {
+      const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(a.name)}&api_key=${encodeURIComponent(state.lastfmApiKey)}&format=json&limit=8`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      const similar = (data.similarartists && data.similarartists.artist) || [];
+      similar.forEach(s => {
+        const key = s.name.toLowerCase();
+        if(followedNames.has(key)) return;
+        if(!tally[key]) tally[key] = { name: s.name, score: 0, url: s.url };
+        tally[key].score += parseFloat(s.match || 0);
+      });
+    }));
+
+    const ranked = Object.values(tally).sort((a,b) => b.score - a.score).slice(0, 20);
+    const container = el('recoList');
+    container.innerHTML = '';
+    if(ranked.length === 0){
+      container.innerHTML = '<div class="status">Aucune recommandation trouvée pour l\'instant.</div>';
+      return;
+    }
+    ranked.forEach((r, i) => {
+      const div = document.createElement('div');
+      div.className = 'chart-row';
+      div.innerHTML = `
+        <span class="rank">${i+1}</span>
+        <div class="meta">
+          <div class="title">${escapeHtml(r.name)}</div>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  }catch(e){
+    el('recoList').innerHTML = `<div class="status">Recommandations indisponibles (${escapeHtml(e.message)}).</div>`;
+  }
+}
+
+/* ---------- FIP LIVE SELECTION ---------- */
+async function fetchFip(){
+  el('fipStatusLabel').textContent = 'Mise à jour…';
+  try{
+    const resp = await fetch('https://api.radiofrance.fr/livemeta/pull/7');
+    const data = await resp.json();
+    const level = data.levels[data.levels.length - 1];
+    const pos = level.position;
+    const items = level.items;
+    const currentUid = items[pos];
+    const current = data.steps[currentUid];
+    const prev = pos > 0 ? data.steps[items[pos - 1]] : null;
+    const next = pos < items.length - 1 ? data.steps[items[pos + 1]] : null;
+    renderFip(current, prev, next);
+    el('fipStatusLabel').textContent = 'En direct';
+  }catch(e){
+    el('fipContent').innerHTML = `<div class="status">Flux FIP indisponible pour le moment (peut-être bloqué par le navigateur). Vous pouvez écouter en direct sur <a href="https://www.fip.fr" target="_blank" style="color:var(--teal);">fip.fr</a>.</div>`;
+    el('fipStatusLabel').textContent = '';
+  }
+}
+
+function fipRow(step, label){
+  if(!step) return '';
+  return `
+    <div class="release">
+      <img src="${step.visual || ''}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="meta">
+        <div class="artist">${escapeHtml(label)}${step.authors ? ' · ' + escapeHtml(step.authors) : ''}</div>
+        <div class="title">${escapeHtml(step.title || '')}</div>
+        <div class="date">${escapeHtml(step.titreAlbum || '')}${step.anneeEditionMusique ? ' · ' + step.anneeEditionMusique : ''}</div>
+      </div>
+    </div>`;
+}
+
+function renderFip(current, prev, next){
+  const container = el('fipContent');
+  container.innerHTML =
+    fipRow(current, '🔴 À l\'antenne') +
+    fipRow(next, 'À suivre') +
+    fipRow(prev, 'Précédemment');
+}
+
+el('fipRefreshBtn').onclick = fetchFip;
+
+/* ---------- INIT ---------- */
+el('searchBtn').onclick = () => searchArtists(el('searchInput').value);
+el('searchInput').addEventListener('input', debounce(e => searchArtists(e.target.value), 400));
+el('searchInput').addEventListener('keydown', e => { if(e.key === 'Enter') searchArtists(e.target.value); });
+el('refreshBtn').onclick = refreshAll;
+
+(async function init(){
+  await loadState();
+  el('lastfmKeyInput').value = state.lastfmApiKey || '';
+  renderFollowed();
+  renderTimeline();
+  if(state.followedArtists.length > 0){
+    await refreshAll();
+  }
+  state.lastVisit = Date.now();
+  await saveState();
+})();
+</script>
+</body>
+</html>
