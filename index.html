@@ -91,7 +91,17 @@
   .fip-extra-loading{ font-size:11px; color:var(--ink-dim); font-style:italic; }
   .fip-tags{ display:flex; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
   .fip-tag{ font-size:10px; text-transform:uppercase; letter-spacing:0.4px; padding:2px 7px; border-radius:10px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink-dim); }
-  .fip-bio{ font-size:12px; color:var(--ink-dim); line-height:1.4; }
+  .fip-bio{
+    font-size:12px; color:var(--ink-dim); line-height:1.4;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .fip-bio.expanded{ -webkit-line-clamp:unset; display:block; overflow:visible; }
+  .fip-bio-toggle{
+    display:block; background:none; border:none; padding:3px 0 0; margin:0;
+    font-family:'Inter', sans-serif; font-weight:600; font-size:11px; text-transform:none;
+    letter-spacing:normal; color:var(--teal); cursor:pointer; border-radius:0;
+  }
+  .fip-bio-toggle:hover{ background:none; text-decoration:underline; }
 
   .bulk-toggle{ margin-top: 10px; }
   .bulk-toggle summary{ cursor:pointer; color: var(--teal); font-size: 13px; font-weight:600; list-style:none; }
@@ -921,8 +931,21 @@ function renderFipExtra(idx, cacheKey, info){
   if(info.genre) tags.push(`<span class="fip-tag">${escapeHtml(info.genre)}</span>`);
   if(info.year) tags.push(`<span class="fip-tag">${escapeHtml(info.year)}</span>`);
   const tagsHtml = tags.length ? `<div class="fip-tags">${tags.join('')}</div>` : '';
-  const bioHtml = info.bio ? `<div class="fip-bio">${escapeHtml(info.bio)}</div>` : '';
+  let bioHtml = '';
+  if(info.bio){
+    bioHtml = `<div class="fip-bio" id="fip-bio-${idx}">${escapeHtml(info.bio)}</div>`;
+    if(info.bio.length > 130){
+      bioHtml += `<button type="button" class="fip-bio-toggle" onclick="toggleFipBio(${idx}, this)">Lire plus ▾</button>`;
+    }
+  }
   target.innerHTML = tagsHtml + bioHtml;
+}
+
+function toggleFipBio(idx, btn){
+  const bioEl = el('fip-bio-' + idx);
+  if(!bioEl) return;
+  const expanded = bioEl.classList.toggle('expanded');
+  btn.textContent = expanded ? 'Réduire ▴' : 'Lire plus ▾';
 }
 
 async function fetchItunesTrack(artist, title){
@@ -945,7 +968,7 @@ async function fetchArtistBio(artist){
       const desc = (data.description || '').toLowerCase();
       if(!FIP_BIO_MUSIC_KEYWORDS.some(k => desc.includes(k))) continue;
       let extract = data.extract;
-      if(extract.length > 240) extract = extract.slice(0, 237) + '…';
+      if(extract.length > 600) extract = extract.slice(0, 597) + '…';
       return extract;
     }catch(e){ /* try next host */ }
   }
