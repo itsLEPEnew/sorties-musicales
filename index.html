@@ -81,6 +81,12 @@
   button.ghost{ background: transparent; border: 1px solid var(--line); color: var(--ink-dim); }
   button.ghost:hover{ color: var(--ink); border-color: var(--ink-dim); }
   button.small{ padding: 6px 10px; font-size: 12px; }
+  button.ghost.playing{ background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .fip-toolbar{ display:flex; justify-content: space-between; align-items:center; gap:10px; margin-bottom: 6px; flex-wrap:wrap; }
+  .fip-toolbar .fip-actions{ display:flex; gap:8px; }
+  .fip-divider{ height:1px; background: var(--line); margin: 2px 0; opacity:0.7; }
+  #fipContent .release{ border-bottom:none; }
 
   .bulk-toggle{ margin-top: 10px; }
   .bulk-toggle summary{ cursor:pointer; color: var(--teal); font-size: 13px; font-weight:600; list-style:none; }
@@ -247,10 +253,14 @@
   <!-- TAB: SELECTION FIP -->
   <div class="tab-panel" id="tab-fip" style="display:none;">
     <p class="reco-note">Ce que joue FIP en direct, en ce moment — la sélection musicale de la radio, pas un classement de popularité. Basé sur un flux public non-officiel de Radio France : peut cesser de fonctionner s'ils changent leur système.</p>
-    <div class="toolbar">
+    <div class="fip-toolbar">
       <span class="sub" id="fipStatusLabel"></span>
-      <button class="ghost small" id="fipRefreshBtn">↻ Rafraîchir</button>
+      <div class="fip-actions">
+        <button class="ghost small" id="fipPlayBtn">▶ Écouter en direct</button>
+        <button class="ghost small" id="fipRefreshBtn">↻ Rafraîchir</button>
+      </div>
     </div>
+    <audio id="fipAudio" preload="none"></audio>
     <div id="fipContent"></div>
   </div>
 
@@ -856,13 +866,54 @@ function fipRow(step, label){
 
 function renderFip(current, prev, next){
   const container = el('fipContent');
-  container.innerHTML =
-    fipRow(current, '🔴 À l\'antenne') +
-    fipRow(next, 'À suivre') +
-    fipRow(prev, 'Précédemment');
+  const rows = [
+    fipRow(prev, 'Précédemment'),
+    fipRow(current, '🔴 À l\'antenne'),
+    fipRow(next, 'À suivre'),
+  ].filter(Boolean);
+  container.innerHTML = rows.join('<div class="fip-divider"></div>');
 }
 
 el('fipRefreshBtn').onclick = fetchFip;
+
+/* ---------- FIP LIVE PLAYER ---------- */
+const FIP_STREAM_URL = 'https://icecast.radiofrance.fr/fip-midfi.mp3';
+const fipAudio = el('fipAudio');
+let fipPlaying = false;
+
+function setFipPlayBtn(mode){
+  const btn = el('fipPlayBtn');
+  if(mode === 'loading'){ btn.textContent = '… Connexion'; btn.disabled = true; btn.classList.remove('playing'); }
+  else if(mode === 'playing'){ btn.textContent = '⏸ En direct'; btn.disabled = false; btn.classList.add('playing'); }
+  else { btn.textContent = '▶ Écouter en direct'; btn.disabled = false; btn.classList.remove('playing'); }
+}
+
+el('fipPlayBtn').onclick = () => {
+  if(fipPlaying){
+    fipAudio.pause();
+    fipPlaying = false;
+    setFipPlayBtn('idle');
+    return;
+  }
+  if(!fipAudio.src) fipAudio.src = FIP_STREAM_URL;
+  setFipPlayBtn('loading');
+  fipAudio.play().then(() => {
+    fipPlaying = true;
+    setFipPlayBtn('playing');
+  }).catch(() => {
+    fipPlaying = false;
+    setFipPlayBtn('idle');
+    el('fipStatusLabel').textContent = 'Lecture impossible (bloquée par le navigateur)';
+  });
+};
+
+fipAudio.addEventListener('waiting', () => { if(fipPlaying) setFipPlayBtn('loading'); });
+fipAudio.addEventListener('playing', () => { fipPlaying = true; setFipPlayBtn('playing'); });
+fipAudio.addEventListener('error', () => {
+  fipPlaying = false;
+  setFipPlayBtn('idle');
+  el('fipStatusLabel').textContent = 'Flux audio indisponible';
+});
 
 /* ---------- INIT ---------- */
 el('searchBtn').onclick = () => searchArtists(el('searchInput').value);
