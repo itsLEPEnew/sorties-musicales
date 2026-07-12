@@ -46,12 +46,12 @@
   }
   .menu-toggle:hover{ background:transparent; color:var(--ink); border-color:var(--ink-dim); }
   .menu-dropdown{
-    position:absolute; left:0; top:calc(100% + 8px); min-width:180px;
+    position:absolute; left:0; top:calc(100% + 8px); width:min(300px, calc(100vw - 40px));
     background:var(--bg-raised); border:1px solid var(--line); border-radius:10px;
-    padding:10px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:50;
+    padding:14px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:50;
   }
   .menu-dropdown[hidden]{ display:none; }
-  .menu-dropdown-empty{ font-size:12px; color:var(--ink-dim); padding:4px; }
+  .menu-section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-dim); margin-bottom:8px; }
   .sub{ color: var(--ink-dim); font-size: 13px; margin: 4px 0 0; }
 
   .splash{
@@ -185,11 +185,13 @@
     width: 28px; text-align:center; font-family:'Oswald', sans-serif; font-weight:700;
     font-size: 15px; color: var(--gold); flex-shrink:0;
   }
-  .chart-row{ display:flex; gap:12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items:center; }
-  .chart-row img{ width:48px; height:48px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+  .chart-row{ display:flex; gap:12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items:flex-start; }
+  .chart-row img{ width:48px; height:48px; border-radius:6px; object-fit:cover; flex-shrink:0; background:var(--bg-card); }
   .chart-row .meta{ flex:1; min-width:0; }
   .chart-row .title{ font-size: 14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .chart-row .artist{ font-size: 12px; color: var(--ink-dim); }
+  .chart-row .rank{ padding-top:4px; }
+  .chart-row .genre-tag{ padding-top:4px; flex-shrink:0; }
   .genre-tag{ font-size: 10px; color: var(--teal); text-transform:uppercase; letter-spacing:0.4px; }
 
   .dig-header{ margin: 20px 0 10px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
@@ -225,7 +227,16 @@
     <div class="menu-wrap">
       <button class="menu-toggle" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-haspopup="true">☰</button>
       <div class="menu-dropdown" id="menuDropdown" hidden>
-        <div class="menu-dropdown-empty">— à venir —</div>
+        <div class="menu-section-title">Clé API Last.fm</div>
+        <p class="sub" style="margin:0 0 8px;">
+          Nécessaire pour Tendances &amp; Recommandations. Clé gratuite sur
+          <a href="https://www.last.fm/api/account/create" target="_blank" style="color:var(--teal);">last.fm/api/account/create</a>.
+        </p>
+        <div class="search-row">
+          <input type="text" id="lastfmKeyInput" placeholder="Clé API Last.fm">
+          <button id="lastfmKeySave">Enregistrer</button>
+        </div>
+        <span class="sub" id="lastfmKeyStatus"></span>
       </div>
     </div>
     <img src="logo.png" class="app-logo" alt="Sorties Musicales">
@@ -237,21 +248,6 @@
     <button class="tab-btn" data-tab="reco">Recommandations</button>
     <button class="tab-btn" data-tab="fip">Sélection FIP</button>
   </nav>
-
-  <details class="bulk-toggle" id="settingsDetails" style="margin-bottom:16px;">
-    <summary>⚙ Clé API Last.fm (nécessaire pour Tendances &amp; Recommandations)</summary>
-    <div class="bulk-area">
-      <p class="sub" style="margin:0;">
-        Basé sur les écoutes réelles des utilisateurs Last.fm (pas un algorithme éditorial). Clé gratuite, obtenue en 30 secondes sur
-        <a href="https://www.last.fm/api/account/create" target="_blank" style="color:var(--teal);">last.fm/api/account/create</a>.
-      </p>
-      <div class="search-row">
-        <input type="text" id="lastfmKeyInput" placeholder="Collez votre clé API Last.fm ici">
-        <button id="lastfmKeySave">Enregistrer</button>
-      </div>
-      <span class="sub" id="lastfmKeyStatus"></span>
-    </div>
-  </details>
 
   <!-- TAB: MES ARTISTES -->
   <div class="tab-panel" id="tab-mine">
@@ -619,7 +615,7 @@ async function ensureGlobalChart(){
 
 async function fetchGlobalChart(){
   if(!state.lastfmApiKey){
-    el('globalChart').innerHTML = '<div class="status">Ajoutez votre clé API Last.fm ci-dessus pour voir ce classement.</div>';
+    el('globalChart').innerHTML = '<div class="status">Ajoutez votre clé API Last.fm dans le menu ☰ pour voir ce classement.</div>';
     el('globalCountLabel').textContent = '';
     return;
   }
@@ -654,14 +650,66 @@ function renderGlobalChart(){
     div.className = 'chart-row';
     div.innerHTML = `
       <span class="rank">${i+1}</span>
+      <img id="chart-cover-${i}" alt="">
       <div class="meta">
         <div class="title">${escapeHtml(r.name)}</div>
         <div class="artist">${escapeHtml(r.artistName)}</div>
+        <div class="chart-extra" id="chart-extra-${i}"></div>
       </div>
       <span class="genre-tag">${Number(r.listeners || 0).toLocaleString('fr-FR')} auditeurs</span>
     `;
     container.appendChild(div);
   });
+  mapWithConcurrency(state.globalChart.map((r, i) => ({ ...r, idx: i })), 3, r => enrichChartRow(r.idx, r.name, r.artistName));
+}
+
+/* ---------- GLOBAL CHART ENRICHMENT (cover / année / style) ---------- */
+const chartInfoCache = new Map();
+
+async function mapWithConcurrency(items, limit, fn){
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while(queue.length){
+      const item = queue.shift();
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
+async function enrichChartRow(idx, name, artistName){
+  const target = el('chart-extra-' + idx);
+  if(!target || !artistName) return;
+
+  const cacheKey = artistName + '|||' + name;
+  target.dataset.key = cacheKey;
+
+  if(chartInfoCache.has(cacheKey)){
+    applyChartInfo(idx, cacheKey, chartInfoCache.get(cacheKey));
+    return;
+  }
+
+  const track = await fetchItunesTrack(artistName, name);
+  const info = {
+    cover: (track && track.artworkUrl100) ? track.artworkUrl100.replace('100x100bb', '200x200bb') : null,
+    year: (track && track.releaseDate) ? track.releaseDate.slice(0, 4) : null,
+    genre: (track && track.primaryGenreName) || null
+  };
+  chartInfoCache.set(cacheKey, info);
+  applyChartInfo(idx, cacheKey, info);
+}
+
+function applyChartInfo(idx, cacheKey, info){
+  const target = el('chart-extra-' + idx);
+  const img = el('chart-cover-' + idx);
+  if(!target || target.dataset.key !== cacheKey) return;
+
+  if(img && info.cover) img.src = info.cover;
+
+  const tags = [];
+  if(info.genre) tags.push(`<span class="fip-tag">${escapeHtml(info.genre)}</span>`);
+  if(info.year) tags.push(`<span class="fip-tag">${escapeHtml(info.year)}</span>`);
+  target.innerHTML = tags.length ? `<div class="fip-tags">${tags.join('')}</div>` : '';
 }
 
 el('globalRefreshBtn').onclick = fetchGlobalChart;
@@ -852,7 +900,7 @@ async function renderReco(){
     return;
   }
   if(!state.lastfmApiKey){
-    el('recoNote').innerHTML = '<p class="reco-note">Ajoutez votre clé API Last.fm ci-dessus pour débloquer les recommandations.</p>';
+    el('recoNote').innerHTML = '<p class="reco-note">Ajoutez votre clé API Last.fm dans le menu ☰ pour débloquer les recommandations.</p>';
     el('recoList').innerHTML = '';
     return;
   }
@@ -1004,12 +1052,19 @@ function toggleFipBio(idx, btn){
   btn.textContent = expanded ? 'Réduire ▴' : 'Lire plus ▾';
 }
 
-async function fetchItunesTrack(artist, title){
-  try{
-    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=song&limit=1`);
-    const data = await resp.json();
-    return (data.results && data.results[0]) || null;
-  }catch(e){ return null; }
+async function fetchItunesTrack(artist, title, retries = 2){
+  for(let attempt = 0; attempt <= retries; attempt++){
+    try{
+      const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=song&limit=1`);
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      return (data.results && data.results[0]) || null;
+    }catch(e){
+      if(attempt === retries) return null;
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  return null;
 }
 
 const FIP_BIO_MUSIC_KEYWORDS = ['chant','musi','group','band','singer','songwriter','rappe','rapper','compos','pianist','guitar','batt','bass','violon','saxo','orchestr','quartet','quintet','collectif','duo','trio','dj','artiste','artist','dee-jay'];
