@@ -103,6 +103,33 @@
   }
   .fip-bio-toggle:hover{ background:none; text-decoration:underline; }
 
+  .fip-player{
+    display:flex; align-items:center; gap:12px;
+    background: var(--bg-raised); border:1px solid var(--line); border-radius:10px;
+    padding:10px 14px; margin: 4px 0 16px;
+  }
+  .fip-player-toggle{
+    width:36px; height:36px; flex-shrink:0; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--accent); color:#fff; font-size:14px; padding:0; line-height:1;
+  }
+  .fip-player-toggle:hover{ background:#d95a8d; }
+  .fip-player-toggle:disabled{ opacity:0.6; cursor:default; }
+  .fip-player-meta{ flex:1; min-width:0; }
+  .fip-player-now{ font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fip-player-sub{ font-size:11px; color: var(--ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .fip-player-right{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .fip-player-time{ font-size:11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; min-width:34px; text-align:right; }
+  .fip-player-bars{ display:flex; align-items:flex-end; gap:2px; height:14px; opacity:0.3; }
+  .fip-player-bars span{ width:3px; background: var(--accent); border-radius:1px; height:4px; display:block; }
+  .fip-player.playing .fip-player-bars{ opacity:1; }
+  .fip-player.playing .fip-player-bars span{ animation: fip-eq 0.9s ease-in-out infinite; }
+  .fip-player-bars span:nth-child(1){ animation-delay:0s; }
+  .fip-player-bars span:nth-child(2){ animation-delay:0.15s; }
+  .fip-player-bars span:nth-child(3){ animation-delay:0.3s; }
+  .fip-player-bars span:nth-child(4){ animation-delay:0.45s; }
+  @keyframes fip-eq{ 0%, 100%{ height:4px; } 50%{ height:14px; } }
+
   .bulk-toggle{ margin-top: 10px; }
   .bulk-toggle summary{ cursor:pointer; color: var(--teal); font-size: 13px; font-weight:600; list-style:none; }
   .bulk-toggle summary::-webkit-details-marker{ display:none; }
@@ -270,12 +297,22 @@
     <p class="reco-note">Ce que joue FIP en direct, en ce moment — la sélection musicale de la radio, pas un classement de popularité. Basé sur un flux public non-officiel de Radio France : peut cesser de fonctionner s'ils changent leur système.</p>
     <div class="fip-toolbar">
       <span class="sub" id="fipStatusLabel"></span>
-      <div class="fip-actions">
-        <button class="ghost small" id="fipPlayBtn">▶ Écouter en direct</button>
-        <button class="ghost small" id="fipRefreshBtn">↻ Rafraîchir</button>
+      <button class="ghost small" id="fipRefreshBtn">↻ Rafraîchir</button>
+    </div>
+
+    <div class="fip-player" id="fipPlayer">
+      <button class="fip-player-toggle" id="fipPlayBtn" aria-label="Écouter FIP en direct">▶</button>
+      <div class="fip-player-meta">
+        <div class="fip-player-now" id="fipPlayerNow">FIP en direct</div>
+        <div class="fip-player-sub" id="fipPlayerSub">Appuyez sur play pour écouter</div>
+      </div>
+      <div class="fip-player-right">
+        <div class="fip-player-bars" id="fipPlayerBars" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <div class="fip-player-time" id="fipPlayerTime">00:00</div>
       </div>
     </div>
     <audio id="fipAudio" preload="none"></audio>
+
     <div id="fipContent"></div>
   </div>
 
@@ -859,6 +896,8 @@ async function fetchFip(){
     const prev = pos > 0 ? data.steps[items[pos - 1]] : null;
     const next = pos < items.length - 1 ? data.steps[items[pos + 1]] : null;
     renderFip(current, prev, next);
+    fipNowPlayingStep = prev || current;
+    updateFipNowPlayingLabel();
     el('fipStatusLabel').textContent = 'En direct';
   }catch(e){
     el('fipContent').innerHTML = `<div class="status">Flux FIP indisponible pour le moment (peut-être bloqué par le navigateur). Vous pouvez écouter en direct sur <a href="https://www.fip.fr" target="_blank" style="color:var(--teal);">fip.fr</a>.</div>`;
@@ -981,12 +1020,47 @@ el('fipRefreshBtn').onclick = fetchFip;
 const FIP_STREAM_URL = 'https://icecast.radiofrance.fr/fip-midfi.mp3';
 const fipAudio = el('fipAudio');
 let fipPlaying = false;
+let fipNowPlayingStep = null;
+let fipElapsedTimer = null;
+
+function fipFormatTime(sec){
+  sec = Math.floor(sec || 0);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function updateFipNowPlayingLabel(){
+  const nowEl = el('fipPlayerNow');
+  const subEl = el('fipPlayerSub');
+  if(!fipPlaying){
+    nowEl.textContent = 'FIP en direct';
+    subEl.textContent = 'Appuyez sur play pour écouter';
+    return;
+  }
+  const step = fipNowPlayingStep;
+  const artist = step ? (step.authors || (step.highlightedArtists && step.highlightedArtists[0]) || '') : '';
+  nowEl.textContent = step ? `${artist ? artist + ' — ' : ''}${step.title || ''}` : 'FIP en direct';
+  subEl.textContent = 'En direct (léger différé sur les infos)';
+}
 
 function setFipPlayBtn(mode){
   const btn = el('fipPlayBtn');
-  if(mode === 'loading'){ btn.textContent = '… Connexion'; btn.disabled = true; btn.classList.remove('playing'); }
-  else if(mode === 'playing'){ btn.textContent = '⏸ En direct'; btn.disabled = false; btn.classList.add('playing'); }
-  else { btn.textContent = '▶ Écouter en direct'; btn.disabled = false; btn.classList.remove('playing'); }
+  const bar = el('fipPlayer');
+  if(mode === 'loading'){ btn.textContent = '…'; btn.disabled = true; bar.classList.remove('playing'); }
+  else if(mode === 'playing'){ btn.textContent = '⏸'; btn.disabled = false; bar.classList.add('playing'); }
+  else { btn.textContent = '▶'; btn.disabled = false; bar.classList.remove('playing'); }
+}
+
+function startFipElapsedTimer(){
+  stopFipElapsedTimer();
+  fipElapsedTimer = setInterval(() => {
+    el('fipPlayerTime').textContent = fipFormatTime(fipAudio.currentTime);
+  }, 1000);
+}
+
+function stopFipElapsedTimer(){
+  if(fipElapsedTimer){ clearInterval(fipElapsedTimer); fipElapsedTimer = null; }
 }
 
 el('fipPlayBtn').onclick = () => {
@@ -994,6 +1068,8 @@ el('fipPlayBtn').onclick = () => {
     fipAudio.pause();
     fipPlaying = false;
     setFipPlayBtn('idle');
+    updateFipNowPlayingLabel();
+    stopFipElapsedTimer();
     return;
   }
   if(!fipAudio.src) fipAudio.src = FIP_STREAM_URL;
@@ -1001,6 +1077,8 @@ el('fipPlayBtn').onclick = () => {
   fipAudio.play().then(() => {
     fipPlaying = true;
     setFipPlayBtn('playing');
+    updateFipNowPlayingLabel();
+    startFipElapsedTimer();
   }).catch(() => {
     fipPlaying = false;
     setFipPlayBtn('idle');
@@ -1013,6 +1091,7 @@ fipAudio.addEventListener('playing', () => { fipPlaying = true; setFipPlayBtn('p
 fipAudio.addEventListener('error', () => {
   fipPlaying = false;
   setFipPlayBtn('idle');
+  stopFipElapsedTimer();
   el('fipStatusLabel').textContent = 'Flux audio indisponible';
 });
 
