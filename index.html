@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Sorties Musicales</title>
-<meta name="theme-color" content="#121016">
+<meta name="theme-color" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,10 +16,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #121016;
-    --bg-raised: #1a1720;
-    --bg-card: #201d28;
-    --line: #322c3b;
+    --bg: #000000;
+    --bg-raised: #121212;
+    --bg-card: #1c1c1c;
+    --line: #2a2a2a;
     --ink: #F2EFEA;
     --ink-dim: #9992a3;
     --accent: #C9427D;
@@ -36,15 +36,21 @@
     -webkit-font-smoothing: antialiased;
   }
   .wrap{ max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
-  header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
-  .brand{ display:flex; align-items:center; gap: 12px; }
-  .app-logo{ width: 40px; height: 40px; flex-shrink:0; border-radius: 8px; }
-  h1{ font-family:'Oswald', sans-serif; font-weight:700; font-size: 28px; letter-spacing: 0.5px; margin:0; text-transform: uppercase; }
-  h1 span{ color: var(--accent); }
+  header{ display:flex; align-items:center; justify-content: center; margin-bottom: 28px; }
+  .app-logo{ width: 64px; height: 64px; flex-shrink:0; border-radius: 14px; }
   .sub{ color: var(--ink-dim); font-size: 13px; margin: 4px 0 0; }
+
+  .splash{
+    position:fixed; inset:0; background:#000000; z-index:9999;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none; animation: splash-out 2s ease forwards;
+  }
+  .splash-logo{ width:100px; height:100px; border-radius:22px; opacity:0; animation: splash-in 0.5s ease forwards; }
+  @keyframes splash-in{ from{ opacity:0; transform:scale(0.9); } to{ opacity:1; transform:scale(1); } }
+  @keyframes splash-out{ 0%, 75%{ opacity:1; } 100%{ opacity:0; } }
   .disc{
     width: 40px; height: 40px; border-radius: 50%;
-    background: radial-gradient(circle at center, #050408 0 6px, #2a2632 6px 8px, #050408 8px 9px, var(--bg-card) 9px 20px);
+    background: radial-gradient(circle at center, #000000 0 6px, #2e2e2e 6px 8px, #000000 8px 9px, var(--bg-card) 9px 20px);
     border: 1px solid var(--line); flex-shrink:0; transition: transform 0.6s ease;
   }
   .disc.spin{ animation: spin 0.9s linear infinite; }
@@ -187,8 +193,8 @@
 
   @media (max-width: 480px){
     .wrap{ padding: calc(16px + env(safe-area-inset-top, 0px)) 14px calc(60px + env(safe-area-inset-bottom, 0px)); }
-    h1{ font-size: 22px; }
-    .app-logo, .disc{ width:34px; height:34px; }
+    .app-logo{ width:52px; height:52px; }
+    .disc{ width:34px; height:34px; }
     .sub{ font-size:12px; }
     nav.tabs button{ padding: 9px 11px; font-size:12px; }
     .search-row{ flex-wrap: wrap; }
@@ -199,16 +205,10 @@
 </style>
 </head>
 <body>
+<div class="splash" id="appSplash"><img src="logo.png" class="splash-logo" alt=""></div>
 <div class="wrap">
   <header>
-    <div class="brand">
-      <img src="logo.png" class="app-logo" alt="">
-      <div>
-        <h1>Sorties<span>.</span></h1>
-        <p class="sub">Vos artistes, les tendances, et des découvertes</p>
-      </div>
-    </div>
-    <div class="disc" id="headerDisc"></div>
+    <img src="logo.png" class="app-logo" alt="Sorties Musicales">
   </header>
 
   <nav class="tabs">
@@ -521,13 +521,10 @@ async function fetchReleasesFor(artistId){
 
 async function refreshAll(){
   if(state.followedArtists.length === 0) return;
-  const disc = el('headerDisc');
-  disc.classList.add('spin');
   el('refreshBtn').disabled = true;
   await Promise.all(state.followedArtists.map(a => fetchReleasesFor(a.id)));
   await saveState();
   renderTimeline();
-  disc.classList.remove('spin');
   el('refreshBtn').disabled = false;
 }
 
@@ -1094,6 +1091,14 @@ fipAudio.addEventListener('error', () => {
   stopFipElapsedTimer();
   el('fipStatusLabel').textContent = 'Flux audio indisponible';
 });
+
+/* ---------- SPLASH ---------- */
+const appSplash = el('appSplash');
+if(appSplash){
+  appSplash.addEventListener('animationend', (e) => {
+    if(e.target === appSplash) appSplash.remove();
+  });
+}
 
 /* ---------- INIT ---------- */
 el('searchBtn').onclick = () => searchArtists(el('searchInput').value);
