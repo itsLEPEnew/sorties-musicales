@@ -86,7 +86,12 @@
   .fip-toolbar{ display:flex; justify-content: space-between; align-items:center; gap:10px; margin-bottom: 6px; flex-wrap:wrap; }
   .fip-toolbar .fip-actions{ display:flex; gap:8px; }
   .fip-divider{ height:1px; background: var(--line); margin: 2px 0; opacity:0.7; }
-  #fipContent .release{ border-bottom:none; }
+  #fipContent .release{ border-bottom:none; align-items:flex-start; }
+  .fip-extra{ margin-top:6px; }
+  .fip-extra-loading{ font-size:11px; color:var(--ink-dim); font-style:italic; }
+  .fip-tags{ display:flex; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
+  .fip-tag{ font-size:10px; text-transform:uppercase; letter-spacing:0.4px; padding:2px 7px; border-radius:10px; background:var(--bg-raised); border:1px solid var(--line); color:var(--ink-dim); }
+  .fip-bio{ font-size:12px; color:var(--ink-dim); line-height:1.4; }
 
   .bulk-toggle{ margin-top: 10px; }
   .bulk-toggle summary{ cursor:pointer; color: var(--teal); font-size: 13px; font-weight:600; list-style:none; }
@@ -851,27 +856,100 @@ async function fetchFip(){
   }
 }
 
-function fipRow(step, label){
+function fipRow(step, label, idx){
   if(!step) return '';
+  const artist = step.authors || (step.highlightedArtists && step.highlightedArtists[0]) || '';
   return `
     <div class="release">
       <img src="${step.visual || ''}" alt="" onerror="this.style.visibility='hidden'">
       <div class="meta">
-        <div class="artist">${escapeHtml(label)}${step.authors ? ' · ' + escapeHtml(step.authors) : ''}</div>
+        <div class="artist">${escapeHtml(label)}${artist ? ' · ' + escapeHtml(artist) : ''}</div>
         <div class="title">${escapeHtml(step.title || '')}</div>
-        <div class="date">${escapeHtml(step.titreAlbum || '')}${step.anneeEditionMusique ? ' · ' + step.anneeEditionMusique : ''}</div>
+        <div class="date">${escapeHtml(step.titreAlbum || '')}</div>
+        <div class="fip-extra" id="fip-extra-${idx}"></div>
       </div>
     </div>`;
 }
 
 function renderFip(current, prev, next){
   const container = el('fipContent');
-  const rows = [
-    fipRow(prev, 'Précédemment'),
-    fipRow(current, '🔴 À l\'antenne'),
-    fipRow(next, 'À suivre'),
-  ].filter(Boolean);
-  container.innerHTML = rows.join('<div class="fip-divider"></div>');
+  const entries = [
+    { step: prev, label: 'Précédemment', idx: 0 },
+    { step: current, label: '🔴 À l\'antenne', idx: 1 },
+    { step: next, label: 'À suivre', idx: 2 },
+  ].filter(e => e.step);
+  container.innerHTML = entries.map(e => fipRow(e.step, e.label, e.idx)).join('<div class="fip-divider"></div>');
+  entries.forEach(e => enrichFipRow(e.idx, e.step));
+}
+
+/* ---------- FIP TRACK ENRICHMENT (année / style / résumé) ---------- */
+const fipInfoCache = new Map();
+
+async function enrichFipRow(idx, step){
+  const artist = step.authors || (step.highlightedArtists && step.highlightedArtists[0]) || '';
+  const title = step.title || '';
+  const target = el('fip-extra-' + idx);
+  if(!target || !artist) return;
+
+  const cacheKey = artist + '|||' + title;
+  target.dataset.key = cacheKey;
+
+  if(fipInfoCache.has(cacheKey)){
+    renderFipExtra(idx, cacheKey, fipInfoCache.get(cacheKey));
+    return;
+  }
+
+  target.innerHTML = '<span class="fip-extra-loading">Infos…</span>';
+
+  const [track, bio] = await Promise.all([
+    fetchItunesTrack(artist, title),
+    fetchArtistBio(artist)
+  ]);
+
+  const year = step.anneeEditionMusique || (track && track.releaseDate ? track.releaseDate.slice(0, 4) : null);
+  const genre = (track && track.primaryGenreName) || null;
+  const info = { year, genre, bio };
+  fipInfoCache.set(cacheKey, info);
+  renderFipExtra(idx, cacheKey, info);
+}
+
+function renderFipExtra(idx, cacheKey, info){
+  const target = el('fip-extra-' + idx);
+  if(!target || target.dataset.key !== cacheKey) return;
+
+  const tags = [];
+  if(info.genre) tags.push(`<span class="fip-tag">${escapeHtml(info.genre)}</span>`);
+  if(info.year) tags.push(`<span class="fip-tag">${escapeHtml(info.year)}</span>`);
+  const tagsHtml = tags.length ? `<div class="fip-tags">${tags.join('')}</div>` : '';
+  const bioHtml = info.bio ? `<div class="fip-bio">${escapeHtml(info.bio)}</div>` : '';
+  target.innerHTML = tagsHtml + bioHtml;
+}
+
+async function fetchItunesTrack(artist, title){
+  try{
+    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=song&limit=1`);
+    const data = await resp.json();
+    return (data.results && data.results[0]) || null;
+  }catch(e){ return null; }
+}
+
+const FIP_BIO_MUSIC_KEYWORDS = ['chant','musi','group','band','singer','songwriter','rappe','rapper','compos','pianist','guitar','batt','bass','violon','saxo','orchestr','quartet','quintet','collectif','duo','trio','dj','artiste','artist','dee-jay'];
+
+async function fetchArtistBio(artist){
+  for(const host of ['fr.wikipedia.org', 'en.wikipedia.org']){
+    try{
+      const resp = await fetch(`https://${host}/api/rest_v1/page/summary/${encodeURIComponent(artist)}`);
+      if(!resp.ok) continue;
+      const data = await resp.json();
+      if(data.type === 'disambiguation' || !data.extract) continue;
+      const desc = (data.description || '').toLowerCase();
+      if(!FIP_BIO_MUSIC_KEYWORDS.some(k => desc.includes(k))) continue;
+      let extract = data.extract;
+      if(extract.length > 240) extract = extract.slice(0, 237) + '…';
+      return extract;
+    }catch(e){ /* try next host */ }
+  }
+  return null;
 }
 
 el('fipRefreshBtn').onclick = fetchFip;
